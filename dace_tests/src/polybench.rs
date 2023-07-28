@@ -655,8 +655,15 @@ pub fn heat_3d(m: usize, n: usize) -> Rc<Node> {
 }
 
 pub fn convolution_2d(ni: usize, nj: usize) -> Rc<Node> {
-    let mut mat_a_ref = Node::new_ref("A", vec![ni, nj], |ij| vec![ij[0] as usize, ij[1] as usize]);
-
+    let mut mat_a_ref = Node::new_ref("A", vec![ni, nj], |ij| vec![ij[0] as usize - 1 , ij[1] as usize - 1]);
+    let mut mat_a_ref_2 = Node::new_ref("A", vec![ni, nj], |ij| {vec![ij[0] as usize, ij[1] as usize - 1]});
+    let mut mat_a_ref_3 = Node::new_ref("A", vec![ni, nj], |ij| vec![ij[0] as usize + 1, ij[1] as usize - 1]);
+    let mut mat_a_ref_4 = Node::new_ref("A", vec![ni, nj], |ij| vec![ij[0] as usize - 1, ij[1] as usize]);
+    let mut mat_a_ref_5 = Node::new_ref("A", vec![ni, nj], |ij| vec![ij[0] as usize - 1, ij[1] as usize]);
+    let mut mat_a_ref_6 = Node::new_ref("A", vec![ni, nj], |ij| vec![ij[0] as usize + 1, ij[1] as usize]);
+    let mut mat_a_ref_7 = Node::new_ref("A", vec![ni, nj], |ij| vec![ij[0] as usize - 1, ij[1] as usize + 1]);
+    let mut mat_a_ref_8 = Node::new_ref("A", vec![ni, nj], |ij| vec![ij[0] as usize, ij[1] as usize + 1]);
+    let mut mat_a_ref_9 = Node::new_ref("A", vec![ni, nj], |ij| vec![ij[0] as usize + 1, ij[1] as usize + 1]);
     let mut mat_b_ref = Node::new_ref("B", vec![ni, nj], |ij| vec![ij[0] as usize, ij[1] as usize]);
 
     let mut i_ni_loop_ref = Node::new_single_loop("i", 1, (ni - 1) as i32);
@@ -667,6 +674,63 @@ pub fn convolution_2d(ni: usize, nj: usize) -> Rc<Node> {
     Node::extend_loop_body(&mut i_ni_loop_ref, &mut j_nj_loop_ref);
 
     Node::new_node(Stmt::Block(vec![i_ni_loop_ref]))
+}
+
+pub fn convolution_2d_spatial(ni: usize, nj: usize) -> Rc<Node> {
+
+    let mut s_ref_i = Node::new_ref("I", vec![ni, ni], |ijxy| {
+        vec![ijxy[0] as usize + ijxy[3] as usize, ijxy[1] as usize + ijxy[2] as usize]
+    });
+    let mut s_ref_k = Node::new_ref("K", vec![nj, nj], |xy| {
+        vec![xy[1] as usize, xy[0] as usize]
+    });
+    let mut s_ref_r = Node::new_ref("R", vec![ni, nj], |ij| {
+        vec![ij[0] as usize, ij[1] as usize]
+    });
+
+    let mut i_loop_ref = Node::new_single_loop("i", 0, (ni - nj + 1) as i32);
+    let mut j_loop_ref = Node::new_single_loop("j", 0, (ni - nj + 1) as i32);
+    let mut x_loop_ref = Node::new_single_loop("x", 0, nj as i32);
+    let mut y_loop_ref = Node::new_single_loop("y", 0, nj as i32);
+
+    Node::extend_loop_body(&mut x_loop_ref, &mut s_ref_i);
+    Node::extend_loop_body(&mut x_loop_ref, &mut s_ref_k);
+    Node::extend_loop_body(&mut y_loop_ref, &mut x_loop_ref);
+    Node::extend_loop_body(&mut j_loop_ref, &mut s_ref_r);
+    Node::extend_loop_body(&mut j_loop_ref, &mut y_loop_ref);
+    Node::extend_loop_body(&mut i_loop_ref, &mut j_loop_ref);
+    i_loop_ref
+}
+
+pub fn convolution_2d_batched(ni: usize, nk: usize, c: usize, batch_size: i32) -> Rc<Node> {
+    let num_passes = (c as f64 / batch_size as f64).ceil() as usize;
+
+    let mut s_ref_i = Node::new_ref("I", vec![ni, ni], |ijxyl| {
+        vec![ijxyl[0] as usize + ijxyl[3] as usize, ijxyl[1] as usize + ijxyl[2] as usize + ijxyl[4] as usize]
+    });
+    let mut s_ref_k = Node::new_ref("K", vec![nk, nk], |xy| {
+        vec![xy[1] as usize, xy[0] as usize]
+    });
+    let mut s_ref_r = Node::new_ref("R", vec![ni, nk], |ij| {
+        vec![ij[0] as usize, ij[1] as usize]
+    });
+
+    let mut i_loop_ref = Node::new_single_loop("i", 0, (ni - nk + 1) as i32);
+    let mut j_loop_ref = Node::new_single_loop("j", 0, (ni - nk + 1) as i32);
+    let mut x_loop_ref = Node::new_single_loop("x", 0, nk as i32);
+    let mut y_loop_ref = Node::new_single_loop("y", 0, nk as i32);
+    let mut p_loop_ref = Node::new_single_loop("p", 0, num_passes as i32);
+    let mut l_loop_ref = loop_node!("l", move |p : &[i32]| p[0] * batch_size => move |p : &[i32]| (p[0]+1) * batch_size);
+
+    Node::extend_loop_body(&mut x_loop_ref, &mut s_ref_i);
+    Node::extend_loop_body(&mut x_loop_ref, &mut s_ref_k);
+    Node::extend_loop_body(&mut y_loop_ref, &mut x_loop_ref);
+    Node::extend_loop_body(&mut l_loop_ref, &mut y_loop_ref);
+    Node::extend_loop_body(&mut j_loop_ref, &mut s_ref_r);
+    Node::extend_loop_body(&mut j_loop_ref, &mut l_loop_ref);
+    Node::extend_loop_body(&mut i_loop_ref, &mut j_loop_ref);
+    Node::extend_loop_body(&mut p_loop_ref, &mut i_loop_ref);
+    p_loop_ref
 }
 
 pub fn symm(n: usize, m: usize) -> Rc<Node> {
