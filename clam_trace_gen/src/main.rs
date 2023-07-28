@@ -2,7 +2,8 @@ mod ri_utils;
 mod sampling;
 use dace_tests::matmul;
 use dace_tests::polybench::{
-    _2mm, _3mm, cholesky, gemm, gramschmidt_trace, lu, mvt, syr2d, syrk, trisolv, trmm_trace,
+    _2mm, _3mm, cholesky, gemm, gramschmidt_trace, lu, mvt, syr2d, syrk, trisolv, trmm_trace, 
+    convolution_2d, convolution_2d_spatial, convolution_2d_batched
 };
 use std::{env, time::Instant};
 use tracing_subscriber::EnvFilter;
@@ -56,6 +57,20 @@ fn main() {
             split[3].parse::<usize>().unwrap(),
         ),
         "matmul" => matmul(split[0].parse::<usize>().unwrap()),
+        "convolution_2d" => convolution_2d(
+            split[0].parse::<usize>().unwrap(),
+            split[1].parse::<usize>().unwrap(),
+        ),
+        "convolution_2d_spatial" => convolution_2d_spatial(
+            split[0].parse::<usize>().unwrap(),
+            split[1].parse::<usize>().unwrap(),
+        ),
+        "convolution_2d_batched" => convolution_2d_batched(
+            split[0].parse::<usize>().unwrap(),
+            split[1].parse::<usize>().unwrap(),
+            split[2].parse::<usize>().unwrap(),
+            split[3].parse::<usize>().unwrap(),
+        ),
         _ => matmul(split[0].parse::<usize>().unwrap()),
     };
     let start = Instant::now();
